@@ -1,0 +1,9 @@
+.hg*
+*.swp
+.ruby-version
+.bundle
+.config
+.yardoc
+Gemfile.lock
+doc/
+*.gem
