@@ -1,6 +1,6 @@
-# Yard::Padrino
+# YARD::Padrino
 
-TODO: Write a gem description
+A YARD plugin for parsing Padrino's controllers and helpers.
 
 ## Installation
 
@@ -15,10 +15,6 @@ And then execute:
 Or install it yourself as:
 
     $ gem install yard-padrino
-
-## Usage
-
-TODO: Write usage instructions here
 
 ## Contributing
 
