@@ -87,6 +87,9 @@ module YARD
       end
 
       def <=>(target)
+        r = self.namespace.to_s <=> target.namespace.to_s
+        return r if r != 0
+
         r = self.controller.to_s <=> target.controller.to_s
         return r if r != 0
 
@@ -114,6 +117,9 @@ module YARD
       end
 
       def <=>(target)
+        r = self.namespace.to_s <=> target.namespace.to_s
+        return r if r != 0
+
         r = self.controller.to_s <=> target.controller.to_s
         return r if r != 0
 

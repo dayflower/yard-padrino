@@ -1,0 +1,22 @@
+<li><span class="object_link"><a title=""></a></span>Routing</li>
+<ul>
+  <% n = 1 %>
+  <% @routes.each do |item| %>
+    <li class="r<%= n %> <%= item.has_tag?(:deprecated) ? 'deprecated' : '' %>">
+      <%= linkify item, h(item.display_name) %>
+      <small><% if item.controller.to_s.empty? %>Global;<% else %>Controller "<%= item.controller %>";<% end %> <% if item.namespace && !item.namespace.root? %><%= item.namespace %><% else %>Top Level<% end %></small>
+    </li>
+    <% n = n == 2 ? 1 : 2 %>
+  <% end %>
+</ul>
+<li><span class="object_link"><a title=""></a></span>Handlers</li>
+<ul>
+  <% n = 1 %>
+  <% @handlers.each do |item| %>
+    <li class="r<%= n %> <%= item.has_tag?(:deprecated) ? 'deprecated' : '' %>">
+      <%= linkify item, h(item.display_name) %>
+      <small><% if item.controller.to_s.empty? %>Global;<% else %>Controller "<%= item.controller %>";<% end %> <% if item.namespace && !item.namespace.root? %><%= item.namespace %><% else %>Top Level<% end %></small>
+    </li>
+    <% n = n == 2 ? 1 : 2 %>
+  <% end %>
+</ul>
