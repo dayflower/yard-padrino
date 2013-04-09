@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 require 'yard/padrino/version'
+require 'yard'
 
 module YARD
   class CLI::Stats
@@ -20,6 +21,8 @@ module YARD
     YARD::Tags::Library.define_tag("Conditions", CONDITION_TAG, :with_name)
     YARD::Tags::Library.visible_tags << CONDITION_TAG
 
+    YARD::Templates::Engine.register_template_path File.dirname(__FILE__) + '/../../templates'
+
     class RegexpObject
       def initialize(pattern)
         @pattern = pattern
@@ -30,7 +33,7 @@ module YARD
       end
 
       def inspect
-        "(Regexp)#{@pattern}"
+        "(Regexp) #{@pattern}"
       end
     end
 
@@ -48,32 +51,79 @@ module YARD
       end
     end
 
-    class HandlerObject < YARD::CodeObjects::MethodObject
-      attr_accessor :real_name
+    class HandlerObject < YARD::CodeObjects::Base
+      attr_accessor :verb
+      attr_accessor :args
+      attr_accessor :controller
 
-      def name(prefix = false)
-        return super unless show_real_name?
-        prefix ? "#{sep}#{real_name}" : real_name.to_sym
+      def initialize(namespace, name, *args, &block)
+        super
+
+        signature = display_name
       end
 
-      def show_real_name?
-        real_name && caller[1] =~ /`signature'/
+      def <=>(target)
+        self.name <=> target.name
       end
 
-      def sep
-        YARD::CodeObjects::ISEP
+      def display_name
+        verb.to_s + " " + args.map { |p| p.inspect }.join(", ")
       end
+
+      def self.method_name_for_handler(controller, verb, args)
+        ([ controller, verb ] + args.map { |p| p.to_s.gsub(/[^\w_]/, '_') }).select { |i| ! i.nil? }.join('_')
+      end
+    end
+
+    class GeneralHandlerObject < HandlerObject
+      VERB_ORDER = {
+        'before'  => 3,
+        'after'   => 2,
+        'error'   => 1,
+      }
 
       def type
         :padrino_handler
       end
+
+      def <=>(target)
+        r = self.controller.to_s <=> target.controller.to_s
+        return r if r != 0
+
+        r = (VERB_ORDER[self.verb] || 0) <=> (VERB_ORDER[target.verb] || 0)
+        return -r if r != 0
+
+        r = self.args <=> target.args
+        return r if r != 0
+
+        return 0
+      end
     end
 
     class RouteObject < HandlerObject
-      attr_accessor :http_verb, :http_paths
+      VERB_ORDER = {
+        'GET'     => 5,
+        'POST'    => 4,
+        'HEAD'    => 3,
+        'PUT'     => 2,
+        'DELETE'  => 1,
+      }
 
       def type
         :padrino_route
+      end
+
+      def <=>(target)
+        r = self.controller.to_s <=> target.controller.to_s
+        return r if r != 0
+
+        r = self.args <=> target.args
+        return r if r != 0
+
+        r = (VERB_ORDER[self.verb] || 0) <=> (VERB_ORDER[target.verb] || 0)
+        return -r if r != 0
+
+        return 0
       end
     end
 
@@ -100,9 +150,9 @@ module YARD
         when :controllers, :controller
           process_controllers
         when :error
-          process_handler
+          process_general_handler
         when :before, :after
-          process_handler
+          process_general_handler
         else
           process_http_verb
         end
@@ -135,7 +185,7 @@ module YARD
 
         controller = nil
         param = statement.parameters.first
-        if param.is_a? YARD::Parser::Ruby::LiteralNode
+        if is_literal?(param)
           controller = convert_literal(param)
         end
 
@@ -149,7 +199,7 @@ module YARD
         end
       end
 
-      def process_handler
+      def process_general_handler
         verb = statement.method_name(true).to_s
         paths = []
 
@@ -162,11 +212,9 @@ module YARD
         last_param = statement.parameters(false).last
         options = convert_hash(last_param)  if is_hash?(last_param)
 
-        if extra_state.padrino && extra_state.padrino[:controller]
-          paths.unshift extra_state.padrino[:controller]
-        end
+        controller = extra_state.padrino[:controller]  if extra_state.padrino
 
-        register_padrino_handler(verb, paths, options)
+        register_padrino_general_handler(controller, verb, paths, options)
       end
 
       def process_http_verb
@@ -176,70 +224,67 @@ module YARD
         last_param = statement.parameters(false).last
         options = convert_hash(last_param)  if is_hash?(last_param)
 
-        if extra_state.padrino && extra_state.padrino[:controller]
-          paths.unshift extra_state.padrino[:controller]
-        end
+        controller = extra_state.padrino[:controller]  if extra_state.padrino
 
-        register_padrino_route(verb, paths, options)
+        register_padrino_route(controller, verb, paths, options)
       end
 
-      def register_padrino_route(verb, paths, options = nil)
-        method_name  = ([ verb ] + paths.map { |p| p.to_s.gsub(/[^\w_]/, '_') }).join('_')
-        display_name = verb.to_s + " " + paths.map { |p| p.inspect }.join(", ")
+      def register_padrino_route(controller, verb, args, options = nil, &block)
+        method_name = RouteObject.method_name_for_handler(controller, verb, args)
 
-        route = register RouteObject.new(namespace, method_name) do |o|
-          o.visibility = 'public'
-          o.explicit   = true
-          o.scope      = scope
+        register_padrino_handler(
+          {
+            :class        => RouteObject,
+            :group        => "Padrino Routings",
+            :method_name  => method_name,
+            :controller   => controller,
+            :verb         => verb,
+            :args         => args,
+            :options      => options,
+          },
+          &block
+        )
+      end
 
-          o.group      = "Padrino Routings"
-          o.source     = statement.source
-          o.signature  = display_name
-          o.docstring  = statement.comments
-          o.http_verb  = verb
-          o.http_paths = paths
-          o.real_name  = display_name
+      def register_padrino_general_handler(controller, verb, args, options = nil, &block)
+        method_name = GeneralHandlerObject.method_name_for_handler(controller, verb, args)
+        method_name = method_name + '#' + method_name.object_id.to_s
+
+        register_padrino_handler(
+          {
+            :class        => GeneralHandlerObject,
+            :group        => "Padrino Handlers",
+            :method_name  => method_name,
+            :controller   => controller,
+            :verb         => verb,
+            :args         => args,
+            :options      => options,
+          },
+          &block
+        )
+      end
+
+      def register_padrino_handler(args = {}, &block)
+        handler = args[:class].new(namespace, args[:method_name]) do |o|
+          o.group        = args[:group]
+          o.source       = statement.source
+          o.docstring    = statement.comments
           o.add_file(parser.file, statement.line)
 
-          if options
-            options.each do |key, value|
+          o.controller = args[:controller]
+          o.verb       = args[:verb]
+          o.args       = args[:args]
+
+          if args[:options]
+            args[:options].each do |key, value|
               o.docstring.add_tag YARD::Tags::Tag.new(CONDITION_TAG, '+' + value.inspect + '+', nil, key.inspect)
             end
           end
         end
 
-        yield(route) if block_given?
+        block.call(handler) if block
 
-        route
-      end
-
-      def register_padrino_handler(verb, paths, options = nil)
-        method_name  = ([ verb ] + paths.map { |p| p.to_s.gsub(/[^\w_]/, '_') }).join('_')
-        display_name = verb.to_s + " " + paths.map { |p| p.inspect }.join(", ")
-
-        handler = register HandlerObject.new(namespace, method_name + '#' + method_name.object_id.to_s) do |o|
-          o.visibility = 'private'
-          o.explicit   = true
-          o.scope      = scope
-
-          o.group      = "Padrino Handlers"
-          o.source     = statement.source
-          #o.signature  = display_name
-          o.signature  = o.object_id
-          o.docstring  = statement.comments
-          o.real_name  = display_name
-          o.add_file(parser.file, statement.line)
-
-          if options
-            options.each do |key, value|
-              o.docstring.add_tag YARD::Tags::Tag.new(CONDITION_TAG, '+' + value.inspect + '+', nil, key.inspect)
-            end
-          end
-        end
-
-        yield(handler) if block_given?
-
-        handler
+        register handler
       end
 
       private
@@ -273,6 +318,13 @@ module YARD
         return result
       end
 
+      def is_literal?(obj)
+        return true if obj.is_a?(YARD::Parser::Ruby::LiteralNode)
+
+        return false unless obj.is_a?(YARD::Parser::Ruby::AstNode)
+        obj.type == :dyna_symbol
+      end
+
       def convert_literal(obj)
         case obj.type
         when :label
@@ -292,5 +344,32 @@ module YARD
         end
       end
     end
+
+    module HtmlHelper
+      include YARD::Templates::Helpers::MarkupHelper
+      include YARD::Templates::Helpers::HtmlSyntaxHighlightHelper
+
+      # Formats the signature of Padrino +route+.
+      #
+      # @param [RouteObject] route the routing object to list the signature of
+      # @param [Boolean] link whether to link the method signature to the details view
+      # @return [String] the formatted route signature
+      def signature_for_padrino_handler(route, link = true)
+        name = route.display_name
+        blk = format_block(route)
+
+        title = "<strong>%s</strong>%s" % [h(name), blk]
+        if link
+          link_title = h(name)
+          obj = route.respond_to?(:object) ? route.object : route
+          url = url_for(object, obj)
+          link_url(url, title, :title => link_title)
+        else
+          title
+        end
+      end
+    end
+
+    YARD::Templates::Template.extra_includes << HtmlHelper
   end
 end

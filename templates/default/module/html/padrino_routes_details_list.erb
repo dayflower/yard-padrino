@@ -1,0 +1,17 @@
+<% if padrino_routes.size > 0 %>
+  <div id="padrino_routes_details" class="method_details_list">
+    <h2>Padrino Routing Details</h2>
+    <% padrino_routes_listing.each do |item| %>
+      <h3>
+        <% if item[:controller].empty? %>
+          Global Controller
+        <% else %>
+          Controller <%= h(item[:controller]) %>
+        <% end %>
+      </h3>
+      <% item[:routes].each_with_index do |route, i| %>
+        <%= yieldall :object => route, :owner => object, :index => i %>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

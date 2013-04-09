@@ -1,0 +1,20 @@
+<% if padrino_routes.size > 0 %>
+  <h2>
+    Padrino Routing Summary
+  </h2>
+  <% padrino_routes_listing.each do |item| %>
+    <h3>
+      <% if item[:controller].empty? %>
+        Global Controller
+      <% else %>
+        Controller <%= h(item[:controller]) %>
+      <% end %>
+      <small>(<a href="#" class="summary_toggle">collapse</a>)</small>
+    </h3>
+    <ul class="summary">
+      <% item[:routes].each do |route| %>
+        <%= yieldall :item => route %>
+      <% end %>
+    </ul>
+  <% end %>
+<% end %>

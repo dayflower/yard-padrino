@@ -1,0 +1,17 @@
+<% if padrino_handlers.size > 0 %>
+  <div id="padrino_handlers_details" class="method_details_list">
+    <h2>Padrino Handlers Details</h2>
+    <% padrino_handlers_listing.each do |item| %>
+      <h3>
+        <% if item[:controller].empty? %>
+          Global Controller
+        <% else %>
+          Controller <%= h(item[:controller]) %>
+        <% end %>
+      </h3>
+      <% item[:handlers].each_with_index do |handler, i| %>
+        <%= yieldall :object => handler, :owner => object, :index => i %>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>
