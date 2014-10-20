@@ -96,7 +96,7 @@ module YARD
         r = (VERB_ORDER[self.verb] || 0) <=> (VERB_ORDER[target.verb] || 0)
         return -r if r != 0
 
-        r = self.args <=> target.args
+        r = self.args.to_s <=> target.args.to_s
         return r if r != 0
 
         return 0
@@ -123,7 +123,7 @@ module YARD
         r = self.controller.to_s <=> target.controller.to_s
         return r if r != 0
 
-        r = self.args <=> target.args
+        r = self.args.to_s <=> target.args.to_s
         return r if r != 0
 
         r = (VERB_ORDER[self.verb] || 0) <=> (VERB_ORDER[target.verb] || 0)
